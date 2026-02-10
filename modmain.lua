@@ -1,8 +1,11 @@
 GLOBAL.setmetatable(env, { __index = function(t, k) return GLOBAL.rawget(GLOBAL, k) end })
 
 local BUFF_INTENSITY = GetModConfigData("buff_intensity") or 1
+local POWERFUL_MODE = GetModConfigData("powerful_mode")
+if POWERFUL_MODE == nil then POWERFUL_MODE = true end
 
 local current_weather = nil
+local last_phase = ""
 local last_day = -1
 
 local function ClearWeatherBuff(inst)
@@ -49,12 +52,23 @@ local function DetectCurrentWeather()
     end
 end
 
-local function AnnounceWeather()
+local function GetCurrentPhase()
+    if TheWorld.state.isday then
+        return "白天"
+    elseif TheWorld.state.isdusk then
+        return "黄昏"
+    elseif TheWorld.state.isnight then
+        return "夜晚"
+    else
+        return "未知"
+    end
+end
+
+local function AnnounceWeather(phase_name)
     local weather_name = DetectCurrentWeather()
     current_weather = weather_name
     ApplyWeatherBuffToAllPlayers(weather_name)
     
-    -- 根据强度计算实际buff值并宣告
     local buff_desc = ""
     if weather_name == "晴天" then
         local buff_value = 10 * BUFF_INTENSITY
@@ -67,17 +81,32 @@ local function AnnounceWeather()
         buff_desc = "移动速度降低" .. buff_value .. "%"
     end
     
-    TheNet:Announce("【每日天气】今日天气：" .. weather_name .. "，给予Buff：" .. buff_desc)
+    TheNet:Announce("【每日天气】" .. phase_name .. "天气：" .. weather_name .. "，给予Buff：" .. buff_desc)
 end
 
 local function CheckDailyWeather()
     if not TheWorld.ismastersim then return end
     
-    local current_day = TheWorld.state.cycles
-    
-    if current_day ~= last_day and TheWorld.state.isday then
-        last_day = current_day
-        TheWorld:DoTaskInTime(3, AnnounceWeather)
+    if POWERFUL_MODE then
+
+        local current_phase = GetCurrentPhase()
+        
+        if current_phase ~= last_phase and current_phase ~= "未知" then
+            last_phase = current_phase
+            TheWorld:DoTaskInTime(3, function()
+                AnnounceWeather(current_phase)
+            end)
+        end
+    else
+
+        local current_day = TheWorld.state.cycles
+        
+        if current_day ~= last_day and TheWorld.state.isday then
+            last_day = current_day
+            TheWorld:DoTaskInTime(3, function()
+                AnnounceWeather("今日")
+            end)
+        end
     end
 end
 
