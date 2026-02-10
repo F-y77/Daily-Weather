@@ -1,7 +1,7 @@
 name = "每日天气预报"
 description = "每日天气系统，频繁改变世界天气并提供不同的buff效果"
 author = "橙小幸"
-version = "0.1"
+version = "0.2"
 
 forumthread = ""
 api_version = 10
@@ -26,7 +26,7 @@ configuration_options = {
             {description = "正常", data = 4},
             {description = "慢", data = 8},
         },
-        default = 2,
+        default = 1,
     },
     {
         name = "buff_intensity",

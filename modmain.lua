@@ -1,192 +1,131 @@
--- 设置全局环境
 GLOBAL.setmetatable(env, { __index = function(t, k) return GLOBAL.rawget(GLOBAL, k) end })
 
+print("[每日天气预报] 模组开始加载")
+
 -- 获取配置
-local WEATHER_CHANGE_FREQ = GetModConfigData("weather_change_frequency")
-local BUFF_INTENSITY = GetModConfigData("buff_intensity")
+local BUFF_INTENSITY = GetModConfigData("buff_intensity") or 1
 
--- 天气类型定义（只包含游戏中真实存在的天气效果）
-local WEATHER_TYPES = {
-    SUNNY = {
-        name = "晴天",
-        weather = "clear",
-        buff = function(inst)
-            -- 晴天：移动速度提升
-            inst.components.locomotor:SetExternalSpeedMultiplier(inst, "weather_buff", 1 + 0.1 * BUFF_INTENSITY)
-        end,
-        color = {1, 1, 0.8}
-    },
-    RAINY = {
-        name = "雨天",
-        weather = "rain",
-        precipitation_rate = 0.5,
-        buff = function(inst)
-            -- 雨天：移动减慢，理智消耗增加
-            inst.components.locomotor:SetExternalSpeedMultiplier(inst, "weather_buff", 1 - 0.05 * BUFF_INTENSITY)
-            if inst.components.sanity then
-                inst.components.sanity.night_drain_mult = 1 + 0.2 * BUFF_INTENSITY
-            end
-        end,
-        color = {0.5, 0.5, 0.8}
-    },
-    STORMY = {
-        name = "暴风雨",
-        weather = "storm",
-        precipitation_rate = 1.0,
-        has_lightning = true,
-        buff = function(inst)
-            -- 暴风雨：攻击力提升但理智下降快
-            if inst.components.combat then
-                inst.components.combat.externaldamagemultipliers:SetModifier(inst, 1 + 0.2 * BUFF_INTENSITY, "weather_buff")
-            end
-            if inst.components.sanity then
-                inst.components.sanity.night_drain_mult = 1 + 0.5 * BUFF_INTENSITY
-            end
-        end,
-        color = {0.3, 0.3, 0.5}
-    },
-    SNOWY = {
-        name = "下雪",
-        weather = "snow",
-        precipitation_rate = 0.5,
-        buff = function(inst)
-            -- 下雪：体温下降快，但食物保鲜时间延长
-            if inst.components.temperature then
-                inst.components.temperature.inherentinsulation = -20 * BUFF_INTENSITY
-            end
-            if inst.components.hunger then
-                inst.components.hunger.burnrate = 1 - 0.1 * BUFF_INTENSITY
-            end
-        end,
-        color = {0.7, 0.8, 1}
-    },
-}
-
--- 当前天气
 local current_weather = nil
-local weather_timer = 0
+local last_day = -1
 
--- 清除buff
+-- 清除玩家buff
 local function ClearWeatherBuff(inst)
     if inst.components.locomotor then
         inst.components.locomotor:RemoveExternalSpeedMultiplier(inst, "weather_buff")
     end
-    if inst.components.combat then
-        inst.components.combat.externaldamagemultipliers:RemoveModifier(inst, "weather_buff")
-        inst.components.combat.externaldamagetakenmultipliers:RemoveModifier(inst, "weather_buff")
-    end
-    if inst.components.sanity then
-        inst.components.sanity.night_drain_mult = 1
-    end
-    if inst.components.temperature then
-        inst.components.temperature.inherentinsulation = 0
-    end
 end
 
--- 应用天气buff
-local function ApplyWeatherBuff(inst, weather_data)
-    ClearWeatherBuff(inst)
-    if weather_data and weather_data.buff then
-        weather_data.buff(inst)
-    end
-end
-
--- 改变天气
-local function ChangeWeather()
-    local world = TheWorld
-    if not world then return end
+-- 应用天气buff到玩家
+local function ApplyWeatherBuffToPlayer(player, weather_name)
+    if not player or not player:IsValid() then return end
     
-    -- 随机选择新天气
-    local weather_keys = {}
-    for k, v in pairs(WEATHER_TYPES) do
-        table.insert(weather_keys, k)
-    end
+    ClearWeatherBuff(player)
     
-    local new_weather_key = weather_keys[math.random(#weather_keys)]
-    current_weather = WEATHER_TYPES[new_weather_key]
-    
-    -- 改变世界天气
-    if world.net and world.net.components.weather then
-        local weather_component = world.net.components.weather
-        
-        -- 先停止所有天气效果
-        weather_component:SetPrecipitationRate(0)
-        if world.components.worldlightning then
-            world.components.worldlightning:StopLightningStorm()
+    if weather_name == "晴天" then
+        -- 晴天：移动速度提升
+        if player.components.locomotor then
+            player.components.locomotor:SetExternalSpeedMultiplier(player, "weather_buff", 1 + 0.1 * BUFF_INTENSITY)
         end
-        
-        -- 根据天气类型设置对应效果
-        if current_weather.weather == "clear" then
-            -- 晴天：停止降水
-            world:PushEvent("ms_forceprecipitation", false)
-            
-        elseif current_weather.weather == "rain" then
-            -- 雨天：开始下雨
-            world:PushEvent("ms_forceprecipitation", true)
-            weather_component:SetPrecipitationRate(current_weather.precipitation_rate or 0.5)
-            
-        elseif current_weather.weather == "storm" then
-            -- 暴风雨：下雨 + 闪电
-            world:PushEvent("ms_forceprecipitation", true)
-            weather_component:SetPrecipitationRate(current_weather.precipitation_rate or 1.0)
-            if current_weather.has_lightning and world.components.worldlightning then
-                world.components.worldlightning:StartLightningStorm()
-            end
-            
-        elseif current_weather.weather == "snow" then
-            -- 下雪
-            world:PushEvent("ms_forceprecipitation", true)
-            weather_component:SetPrecipitationRate(current_weather.precipitation_rate or 0.5)
+    elseif weather_name == "雨天" then
+        -- 雨天：移动减慢
+        if player.components.locomotor then
+            player.components.locomotor:SetExternalSpeedMultiplier(player, "weather_buff", 1 - 0.1 * BUFF_INTENSITY)
+        end
+    elseif weather_name == "雪天" then
+        -- 雪天：移动减慢更多
+        if player.components.locomotor then
+            player.components.locomotor:SetExternalSpeedMultiplier(player, "weather_buff", 1 - 0.15 * BUFF_INTENSITY)
         end
     end
     
-    -- 通知所有玩家并应用buff
+    print("[每日天气] 已为玩家应用buff：" .. weather_name)
+end
+
+-- 应用天气buff到所有玩家
+local function ApplyWeatherBuffToAllPlayers(weather_name)
     for i, player in ipairs(AllPlayers) do
         if player and player:IsValid() then
-            ApplyWeatherBuff(player, current_weather)
-            if player.components.talker then
-                player.components.talker:Say("天气变为：" .. current_weather.name)
-            end
+            ApplyWeatherBuffToPlayer(player, weather_name)
         end
     end
-    
-    print("[每日天气] 天气改变为：" .. current_weather.name .. " (类型: " .. current_weather.weather .. ")")
 end
 
--- 玩家生成时应用buff
+-- 检测当前真实天气
+local function DetectCurrentWeather()
+    local weather_name = "晴天"
+    
+    if TheWorld.state.israining then
+        weather_name = "雨天"
+        print("[每日天气] 检测到下雨，降水率：" .. tostring(TheWorld.state.precipitationrate))
+    elseif TheWorld.state.issnowing then
+        weather_name = "雪天"
+        print("[每日天气] 检测到下雪")
+    else
+        print("[每日天气] 检测到晴天")
+    end
+    
+    return weather_name
+end
+
+-- 播报天气
+local function AnnounceWeather()
+    -- 检测当前真实天气
+    local weather_name = DetectCurrentWeather()
+    current_weather = weather_name
+    
+    print("[每日天气] 当前天气：" .. weather_name)
+    
+    -- 应用玩家buff
+    ApplyWeatherBuffToAllPlayers(weather_name)
+    
+    -- 通知玩家
+    TheNet:Announce("================   每日天气预报   ================")
+    TheNet:Announce("【今日天气】" .. weather_name)
+    TheNet:Announce("====================================================")
+end
+
+-- 检查并触发每日天气
+local function CheckDailyWeather()
+    if not TheWorld.ismastersim then return end
+    
+    local current_day = TheWorld.state.cycles
+    
+    -- 新的一天开始，并且是白天
+    if current_day ~= last_day and TheWorld.state.isday then
+        last_day = current_day
+        
+        print("[每日天气] 检测到新的一天：第" .. current_day .. "天")
+        
+        -- 延迟3秒后播报天气
+        TheWorld:DoTaskInTime(3, function()
+            AnnounceWeather()
+        end)
+    end
+end
+
+-- 添加世界组件监听
 AddPrefabPostInit("world", function(inst)
     if not TheWorld.ismastersim then return end
     
-    inst:DoPeriodicTask(TUNING.TOTAL_DAY_TIME / WEATHER_CHANGE_FREQ, function()
-        ChangeWeather()
-    end)
+    print("[每日天气] 世界初始化完成")
     
-    -- 初始天气
-    inst:DoTaskInTime(1, ChangeWeather)
+    -- 每30秒检查一次
+    inst:DoPeriodicTask(30, CheckDailyWeather)
+    
+    -- 立即检查一次
+    inst:DoTaskInTime(5, CheckDailyWeather)
 end)
 
 -- 玩家加入时应用当前天气buff
 AddPlayerPostInit(function(inst)
-    inst:DoTaskInTime(0, function()
+    if not TheWorld.ismastersim then return end
+    
+    inst:DoTaskInTime(1, function()
         if current_weather then
-            ApplyWeatherBuff(inst, current_weather)
+            print("[每日天气] 新玩家加入，应用天气buff：" .. current_weather)
+            ApplyWeatherBuffToPlayer(inst, current_weather)
         end
     end)
 end)
 
--- 添加天气显示UI（可选）
-AddClassPostConstruct("widgets/controls", function(self)
-    if not self.weather_text then
-        self.weather_text = self:AddChild(Text(BUTTONFONT, 30))
-        self.weather_text:SetPosition(0, -200, 0)
-        self.weather_text:SetRegionSize(400, 50)
-        self.weather_text:SetHAlign(ANCHOR_MIDDLE)
-        
-        self.inst:DoPeriodicTask(1, function()
-            if current_weather then
-                self.weather_text:SetString("当前天气：" .. current_weather.name)
-                self.weather_text:SetColour(unpack(current_weather.color))
-            end
-        end)
-    end
-end)
+print("[每日天气预报] 模组加载完成！")
