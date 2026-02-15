@@ -1,0 +1,71 @@
+[hr][/hr]
+
+[h2]Mod Overview[/h2]
+The Daily Weather mod automatically detects the actual weather conditions in the game and provides corresponding buffs or debuffs to players based on different weather types.
+
+[hr][/hr]
+
+[h2]Weather Effects[/h2]
+
+[h3]Sunny Weather[/h3]
+[list]
+[*] Movement speed increased by 10%
+[*] Sanity recovery rate increased by 20%
+[*] Work efficiency increased by 15% (gathering, chopping, mining)
+[/list]
+
+[h3]Rainy Weather[/h3]
+[list]
+[*] Movement speed decreased by 10%
+[*] Sanity drain increased by 15%
+[*] Hunger drain decreased by 10%
+[/list]
+
+[h3]Snowy Weather[/h3]
+[list]
+[*] Movement speed decreased by 15%
+[*] Temperature loss rate increased
+[*] Attack damage decreased by 10%
+[/list]
+
+[hr][/hr]
+
+[h2]Configuration Options[/h2]
+
+[h3]Basic Settings[/h3]
+[list]
+[*] [b]Powerful Mode:[/b] When enabled, detects weather at each time phase (Day/Dusk/Night) (Default: Enabled)
+[*] [b]Show Messages:[/b] Whether to display weather announcements in chat (Default: Enabled)
+[/list]
+
+[h3]Effect Settings[/h3]
+[list]
+[*] [b]Effect Count:[/b] Number of effects provided per weather event, 1-3 options (Default: 2)
+[*] [b]Effect Intensity:[/b] Intensity multiplier for effects, 0.5x to 2x (Default: 1x)
+[/list]
+
+[hr][/hr]
+
+[h2]Announcement Examples[/h2]
+
+[b]With Powerful Mode enabled:[/b]
+[code]
+【Daily Weather】Day Weather: Sunny, Temperature: Warm(45°)
+【Buff Effects】Movement speed +10%, Sanity recovery +20%
+[/code]
+
+[b]During Dusk:[/b]
+[code]
+【Daily Weather】Dusk Weather: Rainy, Temperature: Cold(8°)
+【Buff Effects】Movement speed -10%, Sanity drain +15%
+[/code]
+
+[b]During Night:[/b]
+[code]
+【Daily Weather】Night Weather: Snowy, Temperature: Freezing(-5°)
+【Buff Effects】Movement speed -15%, Temperature loss +20
+[/code]
+
+[hr][/hr]
+
+Thank you for your support.
